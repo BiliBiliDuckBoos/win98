@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows 98 模拟器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "MS Sans Serif", sans-serif;
+            font-size: 11px;
+            overflow: hidden;
+            height: 100vh;
+            background: linear-gradient(45deg, #008080 25%, transparent 25%), 
+                        linear-gradient(-45deg, #008080 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, #008080 75%), 
+                        linear-gradient(-45deg, transparent 75%, #008080 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            background-color: #008080;
+        }
+
+        .desktop {
+            height: 100vh;
+            position: relative;
+        }
+
+        .desktop-icons {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            display: grid;
+            grid-template-columns: repeat(2, 64px);
+            gap: 10px;
+        }
+
+        .desktop-icon {
+            width: 64px;
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 4px;
+            cursor: pointer;
+            user-select: none;
+            color: black;
+            position: relative;
+        }
+
+        .desktop-icon.selected {
+            background-color: #0000ff;
+            color: white;
+        }
+
+        .desktop-icon img {
+            width: 32px;
+            height: 32px;
+            object-fit: contain;
+        }
+
+        .desktop-icon .icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .desktop-icon .label {
+            font-size: 10px;
+            text-align: center;
+            line-height: 12px;
+        }
+
+        .window {
+            position: absolute;
+            background-color: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            min-width: 300px;
+            min-height: 200px;
+            z-index: 10;
+        }
+
+        .window-header {
+            background: linear-gradient(to right, #0000ff, #000080);
+            color: white;
+            padding: 2px 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 2px;
+        }
+
+        .window-control {
+            width: 16px;
+            height: 14px;
+            background-color: #c0c0c0;
+            border: 1px outset #c0c0c0;
+            font-size: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .window-control:hover {
+            background-color: #e0e0e0;
+        }
+
+        .window-content {
+            padding: 8px;
+            height: calc(100% - 24px);
+            overflow: auto;
+            background-color: white;
+        }
+
+        .taskbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 32px;
+            background-color: #c0c0c0;
+            border-top: 2px outset #c0c0c0;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+        }
+
+        .start-button {
+            height: 24px;
+            padding: 0 12px;
+            background-color: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            font-weight: bold;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .start-button:active {
+            border: 2px inset #c0c0c0;
+        }
+
+        .taskbar-tasks {
+            flex: 1;
+            height: 24px;
+            background-color: #c0c0c0;
+            border: 1px inset #c0c0c0;
+            margin: 0 8px;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            gap: 4px;
+        }
+
+        .task-button {
+            height: 20px;
+            padding: 0 8px;
+            background-color: #c0c0c0;
+            border: 1px outset #c0c0c0;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .task-button.minimized {
+            border: 1px inset #c0c0c0;
+        }
+
+        .system-tray {
+            height: 24px;
+            background-color: #c0c0c0;
+            border: 1px inset #c0c0c0;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
+        }
+
+        .start-menu {
+            position: absolute;
+            bottom: 32px;
+            left: 0;
+            width: 250px;
+            background-color: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .start-menu.show {
+            display: block;
+        }
+
+        .start-menu-header {
+            background: linear-gradient(to right, #0000ff, #000080);
+            color: white;
+            padding: 8px;
+            font-weight: bold;
+        }
+
+        .start-menu-items {
+            padding: 4px 0;
+        }
+
+        .start-menu-item {
+            padding: 4px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .start-menu-item:hover {
+            background-color: #0000ff;
+            color: white;
+        }
+
+        .context-menu {
+            position: absolute;
+            background: #c0c0c0;
+            border: 2px outset #c0c0c0;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            padding: 2px 0;
+            min-width: 120px;
+            z-index: 1001;
+            font-size: 11px;
+        }
+
+        .context-menu-item {
+            padding: 4px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-menu-item:hover {
+            background: #0000ff;
+            color: white;
+        }
+
+        .context-menu-item.disabled {
+            color: #808080;
+            cursor: default;
+        }
+
+        .context-menu-item.disabled:hover {
+            background: transparent;
+            color: #808080;
+        }
+
+        .hello-content {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .hello-content h2 {
+            font-size: 18px;
+            color: #000080;
+            margin-bottom: 20px;
+        }
+
+        .hello-content p {
+            font-size: 12px;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .bilibili-button {
+            padding: 8px 16px;
+            background-color: #0000ff;
+            color: white;
+            border: 2px outset #0000ff;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .bilibili-button:hover {
+            background-color: #0000cc;
+        }
+
+        .bilibili-button:active {
+            border: 2px inset #0000ff;
+        }
+
+        .app-91-content {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 24px;
+            color: #333;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .minesweeper-grid {
+            display: inline-block;
+            border: 2px inset #c0c0c0;
+        }
+
+        .minesweeper-cell {
+            width: 16px;
+            height: 16px;
+            border: 1px outset #c0c0c0;
+            background-color: #c0c0c0;
+            font-size: 10px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            vertical-align: top;
+        }
+
+        .minesweeper-cell.revealed {
+            border: 1px inset #c0c0c0;
+            background-color: #e0e0e0;
+        }
+
+        .minesweeper-cell.mine {
+            background-color: #ff0000;
+        }
+
+        .paint-canvas {
+            border: 1px inset #c0c0c0;
+            cursor: crosshair;
+        }
+
+        .paint-tools {
+            width: 80px;
+            background-color: #c0c0c0;
+            border-right: 1px solid #808080;
+            padding: 4px;
+        }
+
+        .paint-tool {
+            width: 24px;
+            height: 24px;
+            border: 1px outset #c0c0c0;
+            background-color: white;
+            margin: 2px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .paint-tool.selected {
+            border: 1px inset #c0c0c0;
+            background-color: #e0e0e0;
+        }
+
+        .paint-color {
+            width: 16px;
+            height: 16px;
+            border: 1px solid #808080;
+            margin: 1px;
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        .paint-color.selected {
+            border: 2px solid #000000;
+        }
+    </style>
+</head>
+<body>
+    <div class="desktop" onclick="clearSelection(event)" oncontextmenu="showDesktopContextMenu(event)">
+        <!-- 桌面图标 -->
+        <div class="desktop-icons" id="desktopIcons">
+            <!-- 第一列 -->
+            <div class="desktop-icon" 
+                 onclick="selectIcon(event, 'mycomputer')" 
+                 ondblclick="openWindow('mycomputer', '我的电脑')"
+                 onmousedown="startIconDrag(event, this, 'mycomputer')"
+                 oncontextmenu="showContextMenu(event, 'mycomputer')">
+                <div class="icon">💻</div>
+                <div class="label">我的电脑</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'mydocuments')" ondblclick="openWindow('mydocuments', '我的文档')"
+                 onmousedown="startIconDrag(event, this, 'mydocuments')"
+                 oncontextmenu="showContextMenu(event, 'mydocuments')">
+                <div class="icon">🗂️</div>
+                <div class="label">我的文档</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'recycle')" ondblclick="openWindow('recycle', '回收站')"
+                 onmousedown="startIconDrag(event, this, 'recycle')"
+                 oncontextmenu="showContextMenu(event, 'recycle')">
+                <div class="icon">🗑️</div>
+                <div class="label">回收站</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'ie')" ondblclick="openWindow('ie', 'Internet Explorer')"
+                 onmousedown="startIconDrag(event, this, 'ie')"
+                 oncontextmenu="showContextMenu(event, 'ie')">
+                <div class="icon">🌐</div>
+                <div class="label">Internet Explorer</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'notepad')" ondblclick="openWindow('notepad', '记事本')"
+                 onmousedown="startIconDrag(event, this, 'notepad')"
+                 oncontextmenu="showContextMenu(event, 'notepad')">
+                <div class="icon">📝</div>
+                <div class="label">记事本</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'paint')" ondblclick="openWindow('paint', '画图')"
+                 onmousedown="startIconDrag(event, this, 'paint')"
+                 oncontextmenu="showContextMenu(event, 'paint')">
+                <div class="icon">🎨</div>
+                <div class="label">画图</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'mediaplayer')" ondblclick="openWindow('mediaplayer', '媒体播放器')"
+                 onmousedown="startIconDrag(event, this, 'mediaplayer')"
+                 oncontextmenu="showContextMenu(event, 'mediaplayer')">
+                <div class="icon">🎵</div>
+                <div class="label">媒体播放器</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'minesweeper')" ondblclick="openWindow('minesweeper', '扫雷')"
+                 onmousedown="startIconDrag(event, this, 'minesweeper')"
+                 oncontextmenu="showContextMenu(event, 'minesweeper')">
+                <div class="icon">💣</div>
+                <div class="label">扫雷</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'bilibili')" ondblclick="openBilibili()"
+                 onmousedown="startIconDrag(event, this, 'bilibili')"
+                 oncontextmenu="showContextMenu(event, 'bilibili')">
+                <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/BiliBili-GFaudtcRPXqtT9Ajjs5k7AcnGR1ChG.png" alt="BiliBili">
+                <div class="label">BiliBili</div>
+            </div>
+            <div class="desktop-icon" onclick="selectIcon(event, 'hello')" ondblclick="openWindow('hello', '你好')"
+                 onmousedown="startIconDrag(event, this, 'hello')"
+                 oncontextmenu="showContextMenu(event, 'hello')">
+                <div class="icon">👋</div>
+                <div class="label">你好</div>
+            </div>
+
+            <!-- 第二列 -->
+            <div class="desktop-icon" onclick="selectIcon(event, 'app91')" ondblclick="openWindow('app91', '91')"
+                 onmousedown="startIconDrag(event, this, 'app91')"
+                 oncontextmenu="showContextMenu(event, 'app91')">
+                <img src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/91-SWy9LLyFpkJFYaxG7L7kT54DaP4Dxp.png" alt="91" style="width: 32px; height: 32px; object-fit: contain;">
+                <div class="label">91</div>
+            </div>
+        </div>
+
+        <!-- 开始菜单 -->
+        <div class="start-menu" id="startMenu">
+            <div class="start-menu-header">
+                <div>🪟 Windows 98</div>
+                <div style="font-size: 9px;">模拟器</div>
+            </div>
+            <div class="start-menu-items">
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>📁</span> 程序
+                </div>
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>📄</span> 文档
+                </div>
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>⚙️</span> 设置
+                </div>
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>🔍</span> 查找
+                </div>
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>❓</span> 帮助
+                </div>
+                <div class="start-menu-item" onclick="closeStartMenu()">
+                    <span>🏃</span> 运行...
+                </div>
+                <div class="start-menu-item" onclick="shutdownSystem()">
+                    <span>💤</span> 关闭系统...
+                </div>
+            </div>
+        </div>
+
+        <!-- 任务栏 -->
+        <div class="taskbar">
+            <div class="start-button" onclick="toggleStartMenu()">
+                <span>🪟</span>
+                <span>开始</span>
+            </div>
+            <div class="taskbar-tasks" id="taskbarTasks">
+                <!-- 任务按钮将在这里动态添加 -->
+            </div>
+            <div class="system-tray">
+                <span>🔊</span>
+                <span id="clock"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedIcon = null;
+        let openWindows = [];
+        let minimizedWindows = [];
+        let windowZIndex = 10;
+        let draggedWindow = null;
+        let dragOffset = { x: 0, y: 0 };
+        let draggedIcon = null;
+        let iconDragOffset = { x: 0, y: 0 };
+        let recycleBin = [];
+        let isDragging = false;
+        let dragStartPos = { x: 0, y: 0 };
+        const dragThreshold = 5;
+
+        // 扫雷游戏变量
+        let minesweeperBoard = [];
+        let minesweeperRows = 9;
+        let minesweeperCols = 9;
+        let minesweeperMines = 10;
+        let minesweeperGameStatus = 'playing';
+
+        // 画图程序变量
+        let paintCanvas = null;
+        let paintCtx = null;
+        let paintIsDrawing = false;
+        let paintLastPos = { x: 0, y: 0 };
+        let paintCurrentTool = 'brush';
+        let paintCurrentColor = '#000000';
+
+        // 时钟更新
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-CN', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: false 
+            });
+            document.getElementById('clock').textContent = timeString;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // 图标选择
+        function selectIcon(event, iconId) {
+            event.stopPropagation();
+            if (isDragging) return;
+            
+            clearSelection();
+            selectedIcon = iconId;
+            event.currentTarget.classList.add('selected');
+        }
+
+        function clearSelection(event) {
+            if (event && event.target.closest('.desktop-icon')) return;
+            selectedIcon = null;
+            document.querySelectorAll('.desktop-icon').forEach(icon => {
+                icon.classList.remove('selected');
+            });
+        }
+
+        // 开始菜单
+        function toggleStartMenu() {
+            const menu = document.getElementById('startMenu');
+            menu.classList.toggle('show');
+        }
+
+        function closeStartMenu() {
+            document.getElementById('startMenu').classList.remove('show');
+        }
+
+        // 窗口管理
+        function openWindow(windowId, title) {
+            if (openWindows.find(w => w.id === windowId)) {
+                return;
+            }
+
+            const window = createWindow(windowId, title);
+            document.body.appendChild(window);
+            
+            openWindows.push({ id: windowId, title: title, element: window });
+            minimizedWindows = minimizedWindows.filter(id => id !== windowId);
+            updateTaskbar();
+            
+            // 初始化特定应用
+            setTimeout(() => {
+                if (windowId === 'minesweeper') {
+                    initMinesweeper();
+                } else if (windowId === 'paint') {
+                    initPaint();
+                } else if (windowId === 'mediaplayer') {
+                    initMediaPlayer();
+                }
+            }, 100);
+        }
+
+        function createWindow(windowId, title) {
+            const window = document.createElement('div');
+            window.className = 'window';
+            window.id = `window-${windowId}`;
+            window.style.left = `${150 + openWindows.length * 30}px`;
+            window.style.top = `${100 + openWindows.length * 30}px`;
+            window.style.width = '500px';
+            window.style.height = '400px';
+            window.style.zIndex = ++windowZIndex;
+
+            window.innerHTML = `
+                <div class="window-header" onmousedown="startDrag(event, '${windowId}')">
+                    <span>${title}</span>
+                    <div class="window-controls">
+                        <div class="window-control" onclick="minimizeWindow('${windowId}')">_</div>
+                        <div class="window-control" onclick="maximizeWindow('${windowId}')">□</div>
+                        <div class="window-control" onclick="closeWindow('${windowId}')">×</div>
+                    </div>
+                </div>
+                <div class="window-content" id="content-${windowId}">
+                    ${getWindowContent(windowId)}
+                </div>
+            `;
+
+            return window;
+        }
+
+        function getWindowContent(windowId) {
+            switch (windowId) {
+                case 'app91':
+                    return `
+                        <div class="app-91-content">
+                            bro，你居然……
+                        </div>
+                    `;
+                case 'hello':
+                    return `
+                        <div class="hello-content">
+                            <h2>你好！</h2>
+                            <p>这个网站是测试中，如果有好的想法可以联系我</p>
+                            <button class="bilibili-button" onclick="window.open('https://space.bilibili.com/1717132739', '_blank')">
+                                -我的B站主页-
+                            </button>
+                        </div>
+                    `;
+                case 'mycomputer':
+                    return `
+                        <h3 style="margin-bottom: 16px;">我的电脑</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #808080;">
+                                <span style="font-size: 24px; margin-right: 8px;">💾</span>
+                                <span>软盘 (A:)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #808080;">
+                                <span style="font-size: 24px; margin-right: 8px;">💿</span>
+                                <span>光盘 (D:)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #808080;">
+                                <span style="font-size: 24px; margin-right: 8px;">🖥️</span>
+                                <span>本地磁盘 (C:)</span>
+                            </div>
+                            <div style="display: flex; align-items: center; padding: 8px; border: 1px solid #808080;">
+                                <span style="font-size: 24px; margin-right: 8px;">🖨️</span>
+                                <span>控制面板</span>
+                            </div>
+                        </div>
+                    `;
+                case 'mydocuments':
+                    return `
+                        <div style="text-align: center; margin-top: 40px;">
+                            <div style="display: inline-block; cursor: pointer; padding: 8px;" ondblclick="openNotepadWithContent('一键三连.txt', '哔哩哔哩DuckBoos创作，记得一定一定一定一定一定一定要一键三连+关注！')">
+                                <div style="font-size: 32px;">📄</div>
+                                <div style="font-size: 10px;">一键三连.txt</div>
+                            </div>
+                        </div>
+                    `;
+                case 'recycle':
+                    return getRecycleBinContent();
+                case 'notepad':
+                    return `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="background-color: #c0c0c0; padding: 4px; border-bottom: 1px solid #808080; font-size: 10px;">
+                                文件(F) 编辑(E) 搜索(S) 帮助(H)
+                            </div>
+                            <textarea style="flex: 1; border: none; resize: none; font-family: monospace; font-size: 11px; padding: 8px;" placeholder="在此输入文本..."></textarea>
+                        </div>
+                    `;
+                case 'ie':
+                    return `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="background-color: #c0c0c0; padding: 4px; border-bottom: 1px solid #808080; font-size: 10px;">
+                                文件(F) 编辑(E) 查看(V) 收藏夹(A) 工具(T) 帮助(H)
+                            </div>
+                            <div style="background-color: #c0c0c0; padding: 8px; border-bottom: 1px solid #808080; display: flex; align-items: center; gap: 8px;">
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">后退</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">前进</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">停止</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">刷新</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">主页</button>
+                            </div>
+                            <div style="background-color: #c0c0c0; padding: 8px; border-bottom: 1px solid #808080; display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 10px;">地址(D):</span>
+                                <input type="text" id="ieAddress" placeholder="输入搜索内容..." style="flex: 1; padding: 4px; border: 1px inset #c0c0c0;" onkeypress="if(event.key==='Enter') searchIE()">
+                                <button onclick="searchIE()" style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">转到</button>
+                            </div>
+                            <div style="flex: 1; background: white; padding: 16px; text-align: center;">
+                                <h2 style="color: #000080; margin-bottom: 16px;">Internet Explorer</h2>
+                                <p style="margin-bottom: 24px;">欢迎使用 Internet Explorer</p>
+                                <input type="text" id="ieSearch" placeholder="搜索互联网..." style="width: 300px; padding: 8px; border: 2px inset #c0c0c0; margin-bottom: 16px;" onkeypress="if(event.key==='Enter') searchIE()">
+                                <br>
+                                <button onclick="searchIE()" style="padding: 8px 16px; background: #0000ff; color: white; border: 2px outset #0000ff;">搜索</button>
+                                <div style="margin-top: 24px; text-align: left; max-width: 300px; margin-left: auto; margin-right: auto;">
+                                    <h4>快速搜索:</h4>
+                                    <div style="margin-top: 8px;">
+                                        <a href="#" onclick="quickSearch('Windows 98')" style="display: block; color: #0000ff; text-decoration: underline; margin: 4px 0;">🪟 Windows 98</a>
+                                        <a href="#" onclick="quickSearch('经典游戏')" style="display: block; color: #0000ff; text-decoration: underline; margin: 4px 0;">🎮 经典游戏</a>
+                                        <a href="#" onclick="quickSearch('90年代音乐')" style="display: block; color: #0000ff; text-decoration: underline; margin: 4px 0;">🎵 90年代音乐</a>
+                                        <a href="#" onclick="quickSearch('怀旧软件')" style="display: block; color: #0000ff; text-decoration: underline; margin: 4px 0;">💾 怀旧软件</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background-color: #c0c0c0; padding: 4px; border-top: 1px solid #808080; font-size: 10px;">完毕</div>
+                        </div>
+                    `;
+                case 'minesweeper':
+                    return `
+                        <div style="padding: 16px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                                <div style="font-size: 11px; font-weight: bold;">地雷数: <span id="mineCount">10</span></div>
+                                <div>
+                                    <button onclick="initMinesweeper()" style="padding: 4px 8px; border: 2px outset #c0c0c0; background: #c0c0c0; font-size: 11px;">😐</button>
+                                    <button onclick="toggleMinesweeperSettings()" style="padding: 4px 8px; border: 2px outset #c0c0c0; background: #c0c0c0; font-size: 10px; margin-left: 8px;">设置</button>
+                                </div>
+                                <div style="font-size: 11px; font-weight: bold;">状态: <span id="gameStatus">游戏中</span></div>
+                            </div>
+                            <div id="minesweeperSettings" style="display: none; margin-bottom: 16px; padding: 12px; background: #f0f0f0; border: 1px solid #808080;">
+                                <div style="margin-bottom: 8px;">
+                                    <label style="font-size: 10px;">格子数 (9-20):</label>
+                                    <input type="number" id="mineRows" min="9" max="20" value="9" style="width: 50px; margin-left: 8px;">
+                                </div>
+                                <div style="margin-bottom: 8px;">
+                                    <label style="font-size: 10px;">地雷数 (5-30):</label>
+                                    <input type="number" id="mineMines" min="5" max="30" value="10" style="width: 50px; margin-left: 8px;">
+                                </div>
+                                <button onclick="applyMinesweeperSettings()" style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">应用设置</button>
+                            </div>
+                            <div id="minesweeperGrid" class="minesweeper-grid"></div>
+                            <div style="margin-top: 8px; font-size: 10px; color: #666;">左键点击揭开格子，右键点击标记地雷</div>
+                        </div>
+                    `;
+                case 'paint':
+                    return `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="background-color: #c0c0c0; padding: 4px; border-bottom: 1px solid #808080; font-size: 10px;">
+                                文件(F) 编辑(E) 查看(V) 图像(I) 颜色(C) 帮助(H)
+                            </div>
+                            <div style="display: flex; flex: 1;">
+                                <div class="paint-tools">
+                                    <div style="margin-bottom: 8px; font-size: 10px;">工具:</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px; margin-bottom: 16px;">
+                                        <div class="paint-tool selected" onclick="selectPaintTool(this, 'brush')" title="画笔">🖌️</div>
+                                        <div class="paint-tool" onclick="selectPaintTool(this, 'pencil')" title="铅笔">✏️</div>
+                                        <div class="paint-tool" onclick="selectPaintTool(this, 'line')" title="直线">📏</div>
+                                        <div class="paint-tool" onclick="selectPaintTool(this, 'rect')" title="矩形">🔲</div>
+                                    </div>
+                                    <div style="font-size: 10px; margin-bottom: 4px;">颜色:</div>
+                                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;" id="paintColors">
+                                        <!-- 颜色将通过JavaScript生成 -->
+                                    </div>
+                                </div>
+                                <div style="flex: 1; padding: 8px; position: relative;">
+                                    <canvas id="paintCanvas" class="paint-canvas" width="400" height="280"></canvas>
+                                    <button onclick="clearPaintCanvas()" style="position: absolute; top: 16px; right: 16px; padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">清除</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                case 'mediaplayer':
+                    return `
+                        <div style="height: 100%; display: flex; flex-direction: column;">
+                            <div style="background-color: #c0c0c0; padding: 4px; border-bottom: 1px solid #808080; font-size: 10px;">
+                                文件(F) 编辑(E) 查看(V) 播放(P) 帮助(H)
+                            </div>
+                            <div style="background-color: #c0c0c0; padding: 8px; border-bottom: 1px solid #808080; display: flex; align-items: center; gap: 8px;">
+                                <input type="file" id="mediaFile" accept=".mp4,.mp3,.jpg,.jpeg,.png" onchange="loadMedia()" style="display: none;">
+                                <button onclick="document.getElementById('mediaFile').click()" style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">打开文件</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">⏸️</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">⏹️</button>
+                                <button style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">⏭️</button>
+                            </div>
+                            <div id="mediaContent" style="flex: 1; background: black; display: flex; align-items: center; justify-content: center; color: white;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 48px; margin-bottom: 16px;">🎬</div>
+                                    <h3>Windows Media Player</h3>
+                                    <p style="margin: 16px 0;">点击"打开文件"选择媒体文件</p>
+                                    <p style="font-size: 10px; color: #ccc;">支持格式: MP4, MP3, JPG, PNG</p>
+                                </div>
+                            </div>
+                            <div style="background-color: #c0c0c0; padding: 4px; border-top: 1px solid #808080; font-size: 10px;">就绪</div>
+                        </div>
+                    `;
+                default:
+                    return `<p>这是一个 Windows 98 应用程序窗口。</p>`;
+            }
+        }
+
+        function getRecycleBinContent() {
+            if (recycleBin.length === 0) {
+                return `
+                    <div style="text-align: center; margin-top: 60px; color: #808080;">
+                        <div style="font-size: 48px;">📁</div>
+                        <p>回收站是空的</p>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div style="padding: 8px;">
+                        <h3 style="margin-bottom: 16px;">回收站</h3>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                            ${recycleBin.map((item, index) => `
+                                <div style="text-align: center; cursor: pointer; padding: 8px;" 
+                                     ondblclick="restoreFromRecycleBin(${index})"
+                                     oncontextmenu="showRecycleBinItemContextMenu(event, ${index})">
+                                    <div style="font-size: 32px;">🗑️</div>
+                                    <div style="font-size: 10px;">${item.title}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button onclick="emptyRecycleBin()" 
+                                    style="padding: 4px 8px; border: 1px outset #c0c0c0; background: #c0c0c0; font-size: 10px;">
+                                清空回收站
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 窗口控制
+        function closeWindow(windowId) {
+            const window = document.getElementById(`window-${windowId}`);
+            if (window) {
+                window.remove();
+                openWindows = openWindows.filter(w => w.id !== windowId);
+                minimizedWindows = minimizedWindows.filter(id => id !== windowId);
+                updateTaskbar();
+            }
+        }
+
+        function minimizeWindow(windowId) {
+            const window = document.getElementById(`window-${windowId}`);
+            if (window) {
+                window.style.display = 'none';
+                if (!minimizedWindows.includes(windowId)) {
+                    minimizedWindows.push(windowId);
+                }
+                updateTaskbar();
+            }
+        }
+
+        function restoreWindow(windowId) {
+            const window = document.getElementById(`window-${windowId}`);
+            if (window) {
+                window.style.display = 'block';
+                window.style.zIndex = ++windowZIndex;
+                minimizedWindows = minimizedWindows.filter(id => id !== windowId);
+                updateTaskbar();
+            }
+        }
+
+        function maximizeWindow(windowId) {
+            const window = document.getElementById(`window-${windowId}`);
+            if (window) {
+                if (window.style.width === '100vw') {
+                    window.style.width = '500px';
+                    window.style.height = '400px';
+                    window.style.left = '150px';
+                    window.style.top = '100px';
+                } else {
+                    window.style.width = '100vw';
+                    window.style.height = 'calc(100vh - 32px)';
+                    window.style.left = '0';
+                    window.style.top = '0';
+                }
+            }
+        }
+
+        // 任务栏更新
+        function updateTaskbar() {
+            const taskbar = document.getElementById('taskbarTasks');
+            taskbar.innerHTML = '';
+            
+            openWindows.forEach(window => {
+                const button = document.createElement('div');
+                button.className = `task-button ${minimizedWindows.includes(window.id) ? 'minimized' : ''}`;
+                button.textContent = window.title;
+                button.onclick = () => {
+                    if (minimizedWindows.includes(window.id)) {
+                        restoreWindow(window.id);
+                    } else {
+                        minimizeWindow(window.id);
+                    }
+                };
+                taskbar.appendChild(button);
+            });
+        }
+
+        // 窗口拖拽
+        function startDrag(event, windowId) {
+            const window = document.getElementById(`window-${windowId}`);
+            draggedWindow = window;
+            
+            const rect = window.getBoundingClientRect();
+            dragOffset.x = event.clientX - rect.left;
+            dragOffset.y = event.clientY - rect.top;
+            
+            window.style.zIndex = ++windowZIndex;
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function drag(event) {
+            if (draggedWindow) {
+                draggedWindow.style.left = `${event.clientX - dragOffset.x}px`;
+                draggedWindow.style.top = `${event.clientY - dragOffset.y}px`;
+            }
+        }
+
+        function stopDrag() {
+            draggedWindow = null;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // 图标拖拽
+        function startIconDrag(event, element, iconId) {
+            event.preventDefault();
+            dragStartPos.x = event.clientX;
+            dragStartPos.y = event.clientY;
+            
+            const moveHandler = (e) => {
+                const distance = Math.sqrt(
+                    Math.pow(e.clientX - dragStartPos.x, 2) + 
+                    Math.pow(e.clientY - dragStartPos.y, 2)
+                );
+                
+                if (distance > dragThreshold && !isDragging) {
+                    isDragging = true;
+                    draggedIcon = element;
+                    
+                    const rect = element.getBoundingClientRect();
+                    iconDragOffset.x = dragStartPos.x - rect.left;
+                    iconDragOffset.y = dragStartPos.y - rect.top;
+                    
+                    element.style.position = 'absolute';
+                    element.style.zIndex = '1000';
+                    element.style.opacity = '0.7';
+                }
+                
+                if (isDragging && draggedIcon) {
+                    draggedIcon.style.left = `${e.clientX - iconDragOffset.x}px`;
+                    draggedIcon.style.top = `${e.clientY - iconDragOffset.y}px`;
+                }
+            };
+            
+            const upHandler = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    if (draggedIcon) {
+                        draggedIcon.style.opacity = '1';
+                        draggedIcon.style.zIndex = 'auto';
+                        draggedIcon = null;
+                    }
+                }
+                document.removeEventListener('mousemove', moveHandler);
+                document.removeEventListener('mouseup', upHandler);
+            };
+            
+            document.addEventListener('mousemove', moveHandler);
+            document.addEventListener('mouseup', upHandler);
+        }
+
+        // 右键菜单
+        function showContextMenu(event, iconId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            removeContextMenu();
+            
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.left = `${event.clientX}px`;
+            menu.style.top = `${event.clientY}px`;
+            
+            const canDelete = !['mycomputer', 'recycle'].includes(iconId);
+            
+            menu.innerHTML = `
+                <div class="context-menu-item" onclick="openWindow('${iconId}', '${getIconTitle(iconId)}'); removeContextMenu();">
+                    <span>📂</span> 打开
+                </div>
+                ${canDelete ? `
+                <div class="context-menu-item" onclick="deleteIcon('${iconId}'); removeContextMenu();">
+                    <span>🗑️</span> 删除
+                </div>
+                ` : `
+                <div class="context-menu-item disabled">
+                    <span>🗑️</span> 删除
+                </div>
+                `}
+            `;
+            
+            document.body.appendChild(menu);
+        }
+
+        function showRecycleBinItemContextMenu(event, index) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            removeContextMenu();
+            
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.left = `${event.clientX}px`;
+            menu.style.top = `${event.clientY}px`;
+            
+            menu.innerHTML = `
+                <div class="context-menu-item" onclick="restoreFromRecycleBin(${index}); removeContextMenu();">
+                    <span>🔄</span> 还原
+                </div>
+                <div class="context-menu-item" onclick="deleteFromRecycleBin(${index}); removeContextMenu();">
+                    <span>❌</span> 永久删除
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+        }
+
+        function showDesktopContextMenu(event) {
+            event.preventDefault();
+            
+            removeContextMenu();
+            
+            const menu = document.createElement('div');
+            menu.className = 'context-menu';
+            menu.style.left = `${event.clientX}px`;
+            menu.style.top = `${event.clientY}px`;
+            
+            menu.innerHTML = `
+                <div class="context-menu-item" onclick="alert('刷新桌面'); removeContextMenu();">
+                    <span>🔄</span> 刷新
+                </div>
+                <div class="context-menu-item" onclick="alert('排列图标'); removeContextMenu();">
+                    <span>📋</span> 排列图标
+                </div>
+                <div class="context-menu-item" onclick="alert('属性'); removeContextMenu();">
+                    <span>⚙️</span> 属性
+                </div>
+            `;
+            
+            document.body.appendChild(menu);
+        }
+
+        function removeContextMenu() {
+            const menu = document.querySelector('.context-menu');
+            if (menu) {
+                menu.remove();
+            }
+        }
+
+        function getIconTitle(iconId) {
+            const titles = {
+                'mycomputer': '我的电脑',
+                'mydocuments': '我的文档',
+                'recycle': '回收站',
+                'ie': 'Internet Explorer',
+                'notepad': '记事本',
+                'paint': '画图',
+                'mediaplayer': '媒体播放器',
+                'minesweeper': '扫雷',
+                'bilibili': 'BiliBili',
+                'hello': '你好',
+                'app91': '91'
+            };
+            return titles[iconId] || iconId;
+        }
+
+        function deleteIcon(iconId) {
+            const iconElement = document.querySelector(`[onmousedown*="${iconId}"]`);
+            if (iconElement) {
+                recycleBin.push({ 
+                    id: iconId, 
+                    title: getIconTitle(iconId), 
+                    element: iconElement.outerHTML,
+                    position: {
+                        left: iconElement.style.left,
+                        top: iconElement.style.top
+                    }
+                });
+                
+                iconElement.remove();
+                
+                const recycleWindow = document.getElementById('content-recycle');
+                if (recycleWindow) {
+                    recycleWindow.innerHTML = getRecycleBinContent();
+                }
+            }
+        }
+
+        function restoreFromRecycleBin(index) {
+            const item = recycleBin[index];
+            if (item) {
+                const temp = document.createElement('div');
+                temp.innerHTML = item.element;
+                const iconElement = temp.firstChild;
+                
+                if (item.position) {
+                    iconElement.style.position = 'absolute';
+                    iconElement.style.left = item.position.left;
+                    iconElement.style.top = item.position.top;
+                }
+                
+                document.getElementById('desktopIcons').appendChild(iconElement);
+                
+                recycleBin.splice(index, 1);
+                
+                const recycleWindow = document.getElementById('content-recycle');
+                if (recycleWindow) {
+                    recycleWindow.innerHTML = getRecycleBinContent();
+                }
+            }
+        }
+
+        function deleteFromRecycleBin(index) {
+            if (index >= 0 && index < recycleBin.length) {
+                recycleBin.splice(index, 1);
+                
+                const recycleWindow = document.getElementById('content-recycle');
+                if (recycleWindow) {
+                    recycleWindow.innerHTML = getRecycleBinContent();
+                }
+            }
+        }
+
+        function emptyRecycleBin() {
+            if (recycleBin.length > 0) {
+                if (confirm('确定要清空回收站吗？')) {
+                    recycleBin = [];
+                    
+                    const recycleWindow = document.getElementById('content-recycle');
+                    if (recycleWindow) {
+                        recycleWindow.innerHTML = getRecycleBinContent();
+                    }
+                }
+            }
+        }
+
+        // 扫雷游戏功能
+        function toggleMinesweeperSettings() {
+            const settings = document.getElementById('minesweeperSettings');
+            if (settings) {
+                settings.style.display = settings.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function applyMinesweeperSettings() {
+            const rowsInput = document.getElementById('mineRows');
+            const minesInput = document.getElementById('mineMines');
+            
+            if (rowsInput && minesInput) {
+                minesweeperRows = Math.max(9, Math.min(20, parseInt(rowsInput.value) || 9));
+                minesweeperCols = minesweeperRows;
+                minesweeperMines = Math.max(5, Math.min(Math.floor(minesweeperRows * minesweeperCols * 0.3), parseInt(minesInput.value) || 10));
+                
+                rowsInput.value = minesweeperRows;
+                minesInput.value = minesweeperMines;
+                
+                initMinesweeper();
+                toggleMinesweeperSettings();
+            }
+        }
+
+        function initMinesweeper() {
+            minesweeperBoard = Array(minesweeperRows).fill().map(() => 
+                Array(minesweeperCols).fill().map(() => ({
+                    isMine: false,
+                    isRevealed: false,
+                    isFlagged: false,
+                    neighborMines: 0
+                }))
+            );
+
+            let minesPlaced = 0;
+            while (minesPlaced < minesweeperMines) {
+                const row = Math.floor(Math.random() * minesweeperRows);
+                const col = Math.floor(Math.random() * minesweeperCols);
+                if (!minesweeperBoard[row][col].isMine) {
+                    minesweeperBoard[row][col].isMine = true;
+                    minesPlaced++;
+                }
+            }
+
+            for (let row = 0; row < minesweeperRows; row++) {
+                for (let col = 0; col < minesweeperCols; col++) {
+                    if (!minesweeperBoard[row][col].isMine) {
+                        let count = 0;
+                        for (let i = -1; i <= 1; i++) {
+                            for (let j = -1; j <= 1; j++) {
+                                const newRow = row + i;
+                                const newCol = col + j;
+                                if (newRow >= 0 && newRow < minesweeperRows && 
+                                    newCol >= 0 && newCol < minesweeperCols && 
+                                    minesweeperBoard[newRow][newCol].isMine) {
+                                    count++;
+                                }
+                            }
+                        }
+                        minesweeperBoard[row][col].neighborMines = count;
+                    }
+                }
+            }
+
+            minesweeperGameStatus = 'playing';
+            document.getElementById('mineCount').textContent = minesweeperMines;
+            document.getElementById('gameStatus').textContent = '游戏中';
+            renderMinesweeper();
+        }
+
+        function renderMinesweeper() {
+            const grid = document.getElementById('minesweeperGrid');
+            if (!grid) return;
+            
+            grid.innerHTML = '';
+            grid.style.display = 'grid';
+            grid.style.gridTemplateColumns = `repeat(${minesweeperCols}, 16px)`;
+            grid.style.gap = '0px';
+
+            for (let row = 0; row < minesweeperRows; row++) {
+                for (let col = 0; col < minesweeperCols; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'minesweeper-cell';
+                    
+                    const cellData = minesweeperBoard[row][col];
+                    
+                    if (cellData.isFlagged) {
+                        cell.textContent = '🚩';
+                    } else if (cellData.isRevealed) {
+                        cell.classList.add('revealed');
+                        if (cellData.isMine) {
+                            cell.classList.add('mine');
+                            cell.textContent = '💣';
+                        } else if (cellData.neighborMines > 0) {
+                            cell.textContent = cellData.neighborMines;
+                            cell.style.color = ['', '#0000ff', '#008000', '#ff0000', '#000080', '#800000', '#008080', '#000000', '#808080'][cellData.neighborMines];
+                        }
+                    }
+                    
+                    cell.onclick = () => revealMineCell(row, col);
+                    cell.oncontextmenu = (e) => {
+                        e.preventDefault();
+                        toggleMineFlag(row, col);
+                    };
+                    
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function revealMineCell(row, col) {
+            if (minesweeperGameStatus !== 'playing' || 
+                minesweeperBoard[row][col].isRevealed || 
+                minesweeperBoard[row][col].isFlagged) {
+                return;
+            }
+
+            minesweeperBoard[row][col].isRevealed = true;
+
+            if (minesweeperBoard[row][col].isMine) {
+                minesweeperGameStatus = 'lost';
+                document.getElementById('gameStatus').textContent = '失败!';
+                for (let i = 0; i < minesweeperRows; i++) {
+                    for (let j = 0; j < minesweeperCols; j++) {
+                        if (minesweeperBoard[i][j].isMine) {
+                            minesweeperBoard[i][j].isRevealed = true;
+                        }
+                    }
+                }
+            } else if (minesweeperBoard[row][col].neighborMines === 0) {
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        const newRow = row + i;
+                        const newCol = col + j;
+                        if (newRow >= 0 && newRow < minesweeperRows && 
+                            newCol >= 0 && newCol < minesweeperCols && 
+                            !minesweeperBoard[newRow][newCol].isRevealed && 
+                            !minesweeperBoard[newRow][newCol].isFlagged) {
+                            revealMineCell(newRow, newCol);
+                        }
+                    }
+                }
+            }
+
+            let revealedCount = 0;
+            for (let i = 0; i < minesweeperRows; i++) {
+                for (let j = 0; j < minesweeperCols; j++) {
+                    if (minesweeperBoard[i][j].isRevealed && !minesweeperBoard[i][j].isMine) {
+                        revealedCount++;
+                    }
+                }
+            }
+            if (revealedCount === minesweeperRows * minesweeperCols - minesweeperMines) {
+                minesweeperGameStatus = 'won';
+                document.getElementById('gameStatus').textContent = '获胜!';
+            }
+
+            renderMinesweeper();
+        }
+
+        function toggleMineFlag(row, col) {
+            if (minesweeperGameStatus !== 'playing' || minesweeperBoard[row][col].isRevealed) {
+                return;
+            }
+
+            minesweeperBoard[row][col].isFlagged = !minesweeperBoard[row][col].isFlagged;
+            
+            let flagCount = 0;
+            for (let i = 0; i < minesweeperRows; i++) {
+                for (let j = 0; j < minesweeperCols; j++) {
+                    if (minesweeperBoard[i][j].isFlagged) {
+                        flagCount++;
+                    }
+                }
+            }
+            
+            document.getElementById('mineCount').textContent = minesweeperMines - flagCount;
+
+            renderMinesweeper();
+        }
+
+        // 画图程序功能
+        function initPaint() {
+            paintCanvas = document.getElementById('paintCanvas');
+            if (!paintCanvas) return;
+            
+            paintCtx = paintCanvas.getContext('2d');
+            paintCtx.fillStyle = 'white';
+            paintCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
+            
+            // 初始化颜色选择器
+            const colors = [
+                '#000000', '#FFFFFF', '#FF0000', '#00FF00',
+                '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+                '#800000', '#808080', '#008000', '#000080',
+                '#808000', '#800080', '#008080', '#C0C0C0'
+            ];
+            
+            const colorContainer = document.getElementById('paintColors');
+            if (colorContainer) {
+                colorContainer.innerHTML = '';
+                colors.forEach((color, index) => {
+                    const colorDiv = document.createElement('div');
+                    colorDiv.className = `paint-color ${index === 0 ? 'selected' : ''}`;
+                    colorDiv.style.backgroundColor = color;
+                    colorDiv.onclick = () => selectPaintColor(colorDiv, color);
+                    colorContainer.appendChild(colorDiv);
+                });
+            }
+            
+            // 添加画布事件监听器
+            paintCanvas.onmousedown = startPaintDraw;
+            paintCanvas.onmousemove = paintDraw;
+            paintCanvas.onmouseup = stopPaintDraw;
+            paintCanvas.onmouseleave = stopPaintDraw;
+        }
+
+        function selectPaintTool(element, tool) {
+            document.querySelectorAll('.paint-tool').forEach(t => t.classList.remove('selected'));
+            element.classList.add('selected');
+            paintCurrentTool = tool;
+        }
+
+        function selectPaintColor(element, color) {
+            document.querySelectorAll('.paint-color').forEach(c => c.classList.remove('selected'));
+            element.classList.add('selected');
+            paintCurrentColor = color;
+        }
+
+        function startPaintDraw(e) {
+            if (!paintCtx) return;
+            paintIsDrawing = true;
+            const rect = paintCanvas.getBoundingClientRect();
+            paintLastPos.x = e.clientX - rect.left;
+            paintLastPos.y = e.clientY - rect.top;
+        }
+
+        function paintDraw(e) {
+            if (!paintIsDrawing || !paintCtx) return;
+            
+            const rect = paintCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            paintCtx.beginPath();
+            paintCtx.moveTo(paintLastPos.x, paintLastPos.y);
+            paintCtx.lineTo(x, y);
+            paintCtx.strokeStyle = paintCurrentColor;
+            paintCtx.lineWidth = paintCurrentTool === 'pencil' ? 1 : 2;
+            paintCtx.lineCap = 'round';
+            paintCtx.stroke();
+            
+            paintLastPos.x = x;
+            paintLastPos.y = y;
+        }
+
+        function stopPaintDraw() {
+            paintIsDrawing = false;
+        }
+
+        function clearPaintCanvas() {
+            if (paintCtx) {
+                paintCtx.fillStyle = 'white';
+                paintCtx.fillRect(0, 0, paintCanvas.width, paintCanvas.height);
+            }
+        }
+
+        // 媒体播放器功能
+        function initMediaPlayer() {
+            // 媒体播放器初始化
+        }
+
+        function loadMedia() {
+            const fileInput = document.getElementById('mediaFile');
+            const mediaContent = document.getElementById('mediaContent');
+            
+            if (fileInput.files && fileInput.files[0]) {
+                const file = fileInput.files[0];
+                const fileUrl = URL.createObjectURL(file);
+                
+                if (file.type.startsWith('video/')) {
+                    mediaContent.innerHTML = `
+                        <video controls style="max-width: 100%; max-height: 100%;">
+                            <source src="${fileUrl}" type="${file.type}">
+                            您的浏览器不支持视频播放
+                        </video>
+                    `;
+                } else if (file.type.startsWith('audio/')) {
+                    mediaContent.innerHTML = `
+                        <div style="text-align: center; color: white;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🎵</div>
+                            <h3>${file.name}</h3>
+                            <audio controls style="margin-top: 16px;">
+                                <source src="${fileUrl}" type="${file.type}">
+                                您的浏览器不支持音频播放
+                            </audio>
+                        </div>
+                    `;
+                } else if (file.type.startsWith('image/')) {
+                    mediaContent.innerHTML = `
+                        <img src="${fileUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="图片">
+                    `;
+                }
+            }
+        }
+
+        // IE浏览器功能
+        function searchIE() {
+            const searchInput = document.getElementById('ieSearch') || document.getElementById('ieAddress');
+            const query = searchInput ? searchInput.value.trim() : '';
+            if (query) {
+                window.open(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, '_blank');
+            }
+        }
+
+        function quickSearch(query) {
+            window.open(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, '_blank');
+        }
+
+        // 特殊功能
+        function openBilibili() {
+            window.open('https://www.bilibili.com', '_blank');
+        }
+
+        function openNotepadWithContent(filename, content) {
+            const windowId = `notepad-${Date.now()}`;
+            const window = createWindow(windowId, `记事本 - ${filename}`);
+            
+            const contentDiv = window.querySelector('.window-content');
+            contentDiv.innerHTML = `
+                <div style="height: 100%; display: flex; flex-direction: column;">
+                    <div style="background-color: #c0c0c0; padding: 4px; border-bottom: 1px solid #808080; font-size: 10px;">
+                        文件(F) 编辑(E) 搜索(S) 帮助(H)
+                    </div>
+                    <textarea style="flex: 1; border: none; resize: none; font-family: monospace; font-size: 11px; padding: 8px;">${content}</textarea>
+                </div>
+            `;
+            
+            document.body.appendChild(window);
+            openWindows.push({ id: windowId, title: `记事本 - ${filename}`, element: window });
+            updateTaskbar();
+        }
+
+        function shutdownSystem() {
+            closeStartMenu();
+            
+            const shutdownScreen = document.createElement('div');
+            shutdownScreen.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background: #000080;
+                color: white;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                font-family: "MS Sans Serif", sans-serif;
+            `;
+            
+            shutdownScreen.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🪟</div>
+                    <h2 style="margin-bottom: 20px;">Windows 98 正在关闭...</h2>
+                    <p style="margin-bottom: 30px;">请稍候，系统正在保存您的设置。</p>
+                    <div style="width: 200px; height: 20px; border: 2px inset #c0c0c0; background: #c0c0c0; position: relative;">
+                        <div id="shutdownProgress" style="height: 100%; background: #0000ff; width: 0%; transition: width 3s linear;"></div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(shutdownScreen);
+            
+            setTimeout(() => {
+                document.getElementById('shutdownProgress').style.width = '100%';
+            }, 100);
+            
+            setTimeout(() => {
+                shutdownScreen.innerHTML = `
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 20px;">✅</div>
+                        <h2 style="margin-bottom: 20px;">关机完成</h2>
+                        <p>现在可以安全地关闭计算机了。</p>
+                        <button onclick="location.reload()" style="margin-top: 20px; padding: 8px 16px; background: #c0c0c0; border: 2px outset #c0c0c0; cursor: pointer;">重新启动</button>
+                    </div>
+                `;
+            }, 3000);
+        }
+
+        // 点击其他地方关闭菜单
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.start-button') && !e.target.closest('.start-menu')) {
+                closeStartMenu();
+            }
+            
+            if (!e.target.closest('.context-menu')) {
+                removeContextMenu();
+            }
+        });
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Windows 98 模拟器已加载');
+        });
+    </script>
+</body>
+</html>
